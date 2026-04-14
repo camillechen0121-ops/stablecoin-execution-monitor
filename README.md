@@ -1,118 +1,215 @@
-# Stablecoin FX & Execution Monitoring System
+# Cross-Market Stablecoin Execution Monitor
 
 ## Overview
 
-This project is a real-time stablecoin FX and liquidity monitoring system designed to analyze pricing consistency across fragmented crypto markets and simulate execution decision-making logic.
+This project is a lightweight execution-focused monitoring system designed to analyze cross-market pricing consistency in stablecoin FX markets.
 
-It aggregates market data from multiple centralized exchanges, evaluates cross-venue pricing relationships, and generates execution signals based on deviations from a stablecoin USD anchor assumption.
+It compares:
 
-The system reflects core concepts used in crypto market making and execution trading environments, including liquidity fragmentation, peg stability monitoring, and execution logic design.
+- Direct USDT/USD pricing from centralized exchanges (Kraken, Bitfinex)
+- Implied USDT/USD pricing derived from Binance USDC/USDT market
 
----
+under the assumption that USDC ≈ USD.
 
-## Market Context
-
-Crypto markets are highly fragmented across exchanges, leading to temporary pricing inefficiencies due to:
-
-- Liquidity differences
-- Order book fragmentation
-- Latency between venues
-- Stablecoin peg dynamics
-
-This system models how execution desks monitor these inefficiencies and identify potential trading opportunities.
+The goal is to detect pricing inconsistencies across fragmented venues and evaluate whether a theoretical execution opportunity exists after considering basic execution constraints.
 
 ---
 
-## Key Assumptions
+## Core Concept
 
-The system is built on the following market structure assumptions:
+The system models two pricing paths:
 
-- USDC/USD is treated as a hard peg reference (≈ 1.0)
-- USDT/USD is derived from major liquidity venues (Kraken / Bitfinex)
-- Cross-stablecoin relationships can be inferred via FX reconstruction
+### 1. Direct Market Price (CEX)
+USDT/USD observed directly from centralized exchanges:
+- Kraken
+- Bitfinex
 
-These assumptions allow the system to evaluate pricing consistency across stablecoin pairs.
+### 2. Synthetic Market Price (Binance-derived)
+USDT/USD implied via:
 
----
+USDT → USDC → USD
 
-## System Architecture
+Given:
+- USDC/USDT is traded on Binance
+- USDC is assumed to be pegged to USD
 
-The system follows a modular execution pipeline:
+Implied pricing:
 
-Market Data Layer → Normalization Layer → Signal Generation → Execution Logic → Output Interface
-
----
-
-## Core Components
-
-### 1. Market Data Layer
-- Fetches real-time price data from multiple exchanges
-- Sources include Kraken, Binance, and Bitfinex APIs
-
-### 2. Pricing Normalization
-- Constructs implied FX relationships between stablecoins
-- Aligns pricing into a consistent USD-referenced framework
-
-### 3. Signal Generation
-- Detects deviations from expected peg relationships
-- Identifies cross-venue pricing inefficiencies
-
-### 4. Execution Logic
-- Converts signals into actionable execution decisions
-- Simulates trading responses under different market conditions
-
-### 5. Monitoring Interface
-- Outputs results via Telegram bot for real-time visibility
+USDT/USD ≈ 1 / (USDC/USDT)
 
 ---
 
 ## Execution Logic
 
-The system identifies potential trading opportunities when observed pricing deviates from expected stablecoin FX relationships beyond a defined threshold.
+The system follows a simplified execution-aware workflow:
 
-Decision logic:
+### Step 1: Venue Selection
+- Select the best available USDT/USD execution venue (Kraken vs Bitfinex)
+- Compare effective prices under fee assumptions
 
-- If deviation > threshold → execution signal triggered
-- If within threshold → no action
-- Signals represent potential arbitrage or mispricing conditions
+### Step 2: Price Normalization
+- Convert Binance USDC/USDT into implied USDT/USD
 
----
+### Step 3: Cross-Market Spread
+Spread is defined as:
 
-## Example Use Case
+CEX USDT/USD − Binance implied USDT/USD
 
-1. System collects real-time prices from multiple exchanges  
-2. Computes implied FX relationships between stablecoins  
-3. Compares observed vs expected peg relationships  
-4. Generates execution signal if inconsistency is detected  
-5. Outputs result via Telegram interface
+### Step 4: Decision Layer
+A trade signal is generated only when:
 
----
+|Spread| > threshold
 
-## Tech Stack
-
-- Python
-- REST APIs (Kraken, Binance, Bitfinex)
-- Telegram Bot API
-- Basic financial modeling logic
+Where threshold represents minimum executable edge after considering:
+- Fees
+- Operational buffer
+- Execution uncertainty
 
 ---
 
-## Trading Relevance
+## Key Assumptions
 
-This project demonstrates understanding of:
+### Market Assumptions
+- USDC is fully pegged to USD (USDC ≈ 1 USD)
+- Markets are liquid enough to execute at quoted prices
 
-- Stablecoin FX structure and peg mechanisms
-- Cross-venue liquidity fragmentation
-- Execution decision frameworks
-- Real-time market monitoring systems
-- Basic market making logic design
+### Execution Assumptions
+- All executions are assumed to be **maker orders**
+- No slippage or order book depth modeling is included
+- Latency is ignored (instantaneous execution assumption)
 
-It simulates how execution traders and liquidity providers monitor pricing inefficiencies and respond to market dislocations in fragmented digital asset markets.
+### Fee Structure
+- Kraken: maker fee = 0, taker fee = 1 bp (not used in this model)
+- Binance: maker/taker fee = 0
+- Bitfinex: withdrawal cost approximated at 2 bps
 
 ---
 
-## Disclaimer
+## Signal Interpretation
 
-This system is a simulation tool designed to model stablecoin FX pricing relationships and execution decision logic in fragmented crypto markets.
+The system outputs:
 
-It does not execute real trades, connect to live trading venues, or interact with brokerage or exchange execution systems.
+- **Spread**
+- **Threshold-adjusted signal**
+
+### Signal Logic:
+
+- Spread > threshold  
+  → Sell CEX USDT / Buy Binance-implied USDT
+
+- Spread < -threshold  
+  → Buy CEX USDT / Sell Binance-implied USDT
+
+- Otherwise  
+  → No trade (no sufficient edge)
+
+---
+
+## Example Output
+📊 Cross-Market Consistency Monitor
+
+USDT/USD (Kraken): 1.00020
+
+USDT/USD (Bitfinex): 1.00018
+
+Selected Venue: Kraken
+
+CEX USDT/USD: 1.00020
+
+Binance USDC/USDT: 0.99960
+
+Implied USDT/USD: 1.00040
+
+Spread: 0.00020
+
+Threshold: 0.00010
+
+Signal: TRADE，Spread - Threshold = 0.00010
+
+
+
+---
+
+## How to Run
+
+1. Install dependencies
+   
+    pip install requests python-telegram-bot
+
+2. Configure Telegram Bot Token
+   
+    TELEGRAM_BOT_TOKEN = "xxx"
+
+3. Run script
+   
+    python main.py
+
+4. Telegram usage
+   
+    /start → initialize bot
+
+    /price → fetch live pricing & signal
+
+## System Architecture
+Data Layer
+   
+Market Data (Kraken / Bitfinex / Binance)
+   
+Normalization Layer
+   
+Implied FX Construction
+   
+Cross-Market Spread Calculation
+   
+Execution Decision Engine
+   
+Telegram Output Interface
+
+## Limitations
+
+This is a simplified execution model and does not include:
+
+Order book depth / liquidity modeling
+
+Slippage and partial fill risk
+
+Latency and race conditions
+
+Real trading fees (full structure)
+
+Inventory or capital constraints
+
+It should be interpreted as an execution logic prototype, not a production trading system.
+
+## Future Improvements
+
+Potential extensions include:
+
+### Execution Enhancements
+Bid/ask level modeling instead of last price
+
+Slippage-aware execution simulation
+
+Maker/taker hybrid routing logic
+
+### Risk & PnL Layer
+Position tracking
+
+Real-time PnL attribution
+
+Inventory-based decision making
+
+### Market Expansion
+Multi-venue arbitrage routing
+
+Cross-asset FX modeling (BTC, ETH stable pairs)
+
+## Summary
+
+This project demonstrates a simplified but structured approach to:
+
+Cross-market price consistency analysis
+Synthetic FX construction
+Execution-aware decision making
+
+It reflects foundational concepts used in digital asset market making and execution trading environments.
