@@ -1,215 +1,144 @@
-# Cross-Market Stablecoin Execution Monitor
+# Cross-Venue Liquidity Conversion Monitor
 
-## Overview
+A lightweight execution monitoring tool that compares **cross-venue stablecoin conversion efficiency** across centralized exchanges and synthetic FX pricing routes.
 
-This project is a lightweight execution-focused monitoring system designed to analyze cross-market pricing consistency in stablecoin FX markets.
-
-It compares:
-
-- Direct USDT/USD pricing from centralized exchanges (Kraken, Bitfinex)
-- Implied USDT/USD pricing derived from Binance USDC/USDT market
-
-under the assumption that USDC ≈ USD.
-
-The goal is to detect pricing inconsistencies across fragmented venues and evaluate whether a theoretical execution opportunity exists after considering basic execution constraints.
+The system evaluates whether it is more efficient to convert **USDT into USD-equivalent liquidity via direct CEX venues or indirectly via Binance USDC routing**, under a simplified USDC = USD assumption.
 
 ---
 
-## Core Concept
+## System Overview
 
-The system models two pricing paths:
+This project models a real-world **treasury execution decision problem**:
 
-### 1. Direct Market Price (CEX)
-USDT/USD observed directly from centralized exchanges:
-- Kraken
-- Bitfinex
+Funds denominated in USDT may be converted into USD liquidity through two alternative routes:
 
-### 2. Synthetic Market Price (Binance-derived)
-USDT/USD implied via:
+### Route A — Direct CEX Conversion
+- USDT → USD via:
+  - Kraken
+  - Bitfinex (fallback)
 
-USDT → USDC → USD
-
-Given:
-- USDC/USDT is traded on Binance
-- USDC is assumed to be pegged to USD
-
-Implied pricing:
-
-USDT/USD ≈ 1 / (USDC/USDT)
+### Route B — Indirect Binance Conversion
+- USDT → USDC (Binance)
+- USDC ≈ USD (assumption: 1:1 peg)
 
 ---
 
-## Execution Logic
+## Core Logic
 
-The system follows a simplified execution-aware workflow:
+### 1. CEX Price Selection
+The system selects the best available USDT/USD quote:
 
-### Step 1: Venue Selection
-- Select the best available USDT/USD execution venue (Kraken vs Bitfinex)
-- Compare effective prices under fee assumptions
-
-### Step 2: Price Normalization
-- Convert Binance USDC/USDT into implied USDT/USD
-
-### Step 3: Cross-Market Spread
-Spread is defined as:
-
-CEX USDT/USD − Binance implied USDT/USD
-
-### Step 4: Decision Layer
-A trade signal is generated only when:
-
-|Spread| > threshold
-
-Where threshold represents minimum executable edge after considering:
-- Fees
-- Operational buffer
-- Execution uncertainty
+- Kraken price is used as default benchmark
+- Bitfinex is used if more favorable and available
 
 ---
 
-## Key Assumptions
+### 2. Synthetic USD via Binance
 
-### Market Assumptions
-- USDC is fully pegged to USD (USDC ≈ 1 USD)
-- Markets are liquid enough to execute at quoted prices
+USDC/USDT market price is used to derive implied USD value:
 
-### Execution Assumptions
-- All executions are assumed to be **maker orders**
-- No slippage or order book depth modeling is included
-- Latency is ignored (instantaneous execution assumption)
+USDT/USD (implied) = 1 / (USDC/USDT)
 
-### Fee Structure
-- Kraken: maker fee = 0, taker fee = 1 bp (not used in this model)
-- Binance: maker/taker fee = 0
-- Bitfinex: withdrawal cost approximated at 2 bps
+Assumption: USDC = USD (1:1 peg assumption)
 
 ---
 
-## Signal Interpretation
+### 3. Cross-Market Comparison
 
-The system outputs:
+The system computes: difference = Binance implied USD - CEX USD price
 
-- **Spread**
-- **Threshold-adjusted signal**
+---
 
-### Signal Logic:
+### 4. Execution Decision Rule
 
-- Spread > threshold  
-  → Sell CEX USDT / Buy Binance-implied USDT
+If |difference| < threshold → NO TRADE
 
-- Spread < -threshold  
-  → Buy CEX USDT / Sell Binance-implied USDT
+If difference > 0 → use Binance route
 
-- Otherwise  
-  → No trade (no sufficient edge)
+If difference < 0 → use CEX route
 
 ---
 
 ## Example Output
-📊 Cross-Market Consistency Monitor
 
-USDT/USD (Kraken): 1.00020
+📊 Cross-Venue Liquidity Conversion Monitor
 
-USDT/USD (Bitfinex): 1.00018
+USDT/USD (Kraken): 1.0002
 
-Selected Venue: Kraken
+USDT/USD (Bitfinex): N/A
 
-CEX USDT/USD: 1.00020
+Selected CEX: KRAKEN
 
-Binance USDC/USDT: 0.99960
+CEX USD value: 1.0002
 
-Implied USDT/USD: 1.00040
 
-Spread: 0.00020
+Binance USDC/USDT: 0.9996
 
-Threshold: 0.00010
+Binance effective USD: 1.0004
 
-Signal: TRADE，Spread - Threshold = 0.00010
 
+Difference: 0.00020
+
+
+Decision: USE BINANCE ROUTE (better USD received)
 
 
 ---
 
-## How to Run
+## Project Structure
 
-1. Install dependencies
-   
-    pip install requests python-telegram-bot
+- main.py # Telegram bot execution logic
 
-2. Configure Telegram Bot Token
-   
-    TELEGRAM_BOT_TOKEN = "xxx"
+- README.md # Project documentation
 
-3. Run script
-   
-    python main.py
+---
 
-4. Telegram usage
-   
-    /start → initialize bot
+## Features
 
-    /price → fetch live pricing & signal
+- Real-time cross-exchange price monitoring
+- Dual CEX selection (Kraken / Bitfinex fallback)
+- Synthetic FX pricing via Binance USDC/USDT
+- Simple execution decision engine
+- Telegram bot interface for live monitoring
 
-## System Architecture
-Data Layer
-   
-Market Data (Kraken / Bitfinex / Binance)
-   
-Normalization Layer
-   
-Implied FX Construction
-   
-Cross-Market Spread Calculation
-   
-Execution Decision Engine
-   
-Telegram Output Interface
+---
 
-## Limitations
+## Tech Stack
 
-This is a simplified execution model and does not include:
+- Python 3.10+
+- requests
+- python-telegram-bot
+- Binance / Kraken / Bitfinex public APIs
 
-Order book depth / liquidity modeling
+---
 
-Slippage and partial fill risk
+## Security Notice
 
-Latency and race conditions
+The Telegram bot token is intentionally masked as `"xxx"` in the source code to prevent accidental exposure of credentials.
 
-Real trading fees (full structure)
+For production use, it is recommended to store credentials using environment variables:
 
-Inventory or capital constraints
+export TELEGRAM\_BOT\_TOKEN="your-token-here"
 
-It should be interpreted as an execution logic prototype, not a production trading system.
+---
 
-## Future Improvements
+## Assumptions
+- USDC is assumed to be fully pegged to USD (1:1)
 
-Potential extensions include:
+- No slippage or latency is modeled
 
-### Execution Enhancements
-Bid/ask level modeling instead of last price
+- Execution fees are ignored in this simplified version
 
-Slippage-aware execution simulation
+- Market data is assumed to be instantly executable
 
-Maker/taker hybrid routing logic
+## Use Case
 
-### Risk & PnL Layer
-Position tracking
+This tool is designed for:
 
-Real-time PnL attribution
+- Treasury liquidity routing analysis
 
-Inventory-based decision making
+- Cross-venue pricing consistency checks
 
-### Market Expansion
-Multi-venue arbitrage routing
+- Stablecoin conversion decision support
 
-Cross-asset FX modeling (BTC, ETH stable pairs)
-
-## Summary
-
-This project demonstrates a simplified but structured approach to:
-
-Cross-market price consistency analysis
-Synthetic FX construction
-Execution-aware decision making
-
-It reflects foundational concepts used in digital asset market making and execution trading environments.
+- Educational demonstration of FX-style crypto flows
